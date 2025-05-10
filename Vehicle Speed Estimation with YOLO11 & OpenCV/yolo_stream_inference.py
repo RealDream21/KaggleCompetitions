@@ -1,5 +1,7 @@
 import os
+import yt_dlp
 os.environ["KMP_DUPLICATE_LIB_OK"] = "TRUE"
+os.environ['PAFY_BACKEND'] = 'internal'
 
 import cv2
 from ultralytics import YOLO
@@ -8,28 +10,40 @@ from collections import defaultdict
 import numpy as np
 import PointMaker
 from Speedometer import Speedometer
+import pafy
 
 model = YOLO('yolo11n.pt')
 
-stream_url = "https://p.webcamromania.ro/piataromanab/tracks-v1/mono.m3u8"
+def get_stream_url(youtube_url):
+    ydl_opts = {
+        'quiet': True,
+        'format': 'best[ext=mp4]',
+    }
+
+    with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+        info = ydl.extract_info(youtube_url, download=False)
+        return info['url']
+
+
+stream_url = get_stream_url('https://www.youtube.com/watch?v=rs2be3mqryo')
 
 cap = cv2.VideoCapture(stream_url)
 
 
 src_pts = np.array([
-    [616, 515],   # Top-left
-    [1239, 428],  # Top-right
-    [1916, 806],  # Bottom-right
-    [681, 946]    # Bottom-left
+    [365, 561],   # Top-left
+    [276, 773],  # Top-right
+    [1776, 1059],  # Bottom-right
+    [1629, 445]    # Bottom-left
 ], dtype=np.float32)
 
 # Default real-world measurements in meters (edit these as needed)
-x = 120  # Top-left -> Top-right: x meters
-y = 80  # Top-right -> Bottom-right y meters
-z = 60  # Bottom-right -> Bottom-left z meters
-w = 20  # Bottom-left -> Top-left : w meters 
+x = 88.41 # Top-left -> Top-right: x meters
+y = 85.28  # Top-right -> Bottom-right y meters
+z = 30.75  # Bottom-right -> Bottom-left z meters
+w = 47.64  # Bottom-left -> Top-left : w meters 
 
-target_pixels = 1000
+target_pixels = 700
 max_meters = max(x, y, z, w)
 scale = target_pixels / max_meters
 dst_width = int(max(x, z))
@@ -77,7 +91,7 @@ while cap.isOpened():
 
     last_frame_time = current_time
 
-    results = model.track(frame, classes = [2], persist=True)[0]
+    results = model.track(frame, classes= [2], persist=True)[0]
     
     annotated_frame = results.plot()
 
@@ -112,7 +126,11 @@ while cap.isOpened():
                 thickness=3
             )
 
-
+    # This part plots the polygon area used to calculate the speed
+    # pts = src_pts.astype(np.int32) 
+    # pts = pts.reshape((-1,1,2))
+    # cv2.polylines(frame, [pts], True, (0, 255, 255))
+            
     cv2.imshow("Tracked", frame)
     # cv2.imshow("Warped Top-Down View", warped)
     # cv2.imshow("YOLOv8 Live Stream", annotated_frame)
